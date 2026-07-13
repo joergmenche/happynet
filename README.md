@@ -1,7 +1,8 @@
 # HappyNet
 
-An interactive Three.js presentation about complex networks. Its scenes introduce
-nodes, links, shortest paths, hubs, leaf nodes, communities, and bridges.
+An interactive 17-scene Three.js presentation about complex networks. A consistent
+decimal chapter sequence (`0.1`–`5.5`) introduces nodes, links, shortest paths,
+hubs, leaf nodes, communities, and bridges.
 
 ## Run locally
 

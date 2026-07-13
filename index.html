@@ -80,7 +80,7 @@
             display: flex;
             flex-direction: column;
             gap: 15px;
-            width: 220px;
+            width: 300px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.5);
             transition: opacity 0.2s, visibility 0.2s;
         }
@@ -92,6 +92,36 @@
             display: flex;
             flex-direction: column;
             gap: 5px;
+        }
+        .scene-row {
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+        .scene-status {
+            display: flex;
+            flex: 1;
+            min-width: 0;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+            text-align: center;
+        }
+        #scene-display {
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        #scene-progress {
+            color: rgba(255,255,255,0.62);
+            font-size: 9px;
+            line-height: 1.2;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
         }
         button.action-btn {
             background: rgba(255, 255, 255, 0.1);
@@ -120,7 +150,7 @@
             #ui-panel {
                 top: 68px;
                 left: 12px;
-                width: min(252px, calc(100vw - 24px));
+                width: min(340px, calc(100vw - 24px));
                 box-sizing: border-box;
                 padding: 12px;
                 gap: 12px;
@@ -143,9 +173,12 @@
     <button id="ui-toggle" type="button" aria-expanded="true" aria-controls="ui-panel">⚙️ Controls</button>
     <section id="ui-panel" aria-label="Network presentation controls">
         <h2 class="sr-only">Presentation controls</h2>
-        <div class="control-group" style="flex-direction: row; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 10px;">
+        <div class="control-group scene-row">
             <button id="prev-scene" class="action-btn" type="button">◀ Prev</button>
-            <span id="scene-display" role="status" aria-live="polite" style="font-weight: bold; font-size: 14px;">Scene 0</span>
+            <span class="scene-status" role="status" aria-live="polite" aria-atomic="true">
+                <span id="scene-display">0.1 — Two nodes</span>
+                <span id="scene-progress">1 of 17 · 16 remaining</span>
+            </span>
             <button id="next-scene" class="action-btn" type="button">Next ▶</button>
         </div>
         <button id="presentation-btn" class="action-btn" type="button" aria-pressed="false" style="background: rgba(0, 150, 255, 0.2); border-color: rgba(0, 150, 255, 0.5);">▶ Start Presentation</button>
@@ -614,14 +647,38 @@
         const presentationBtn = document.getElementById('presentation-btn');
         const playPauseBtn = document.getElementById('play-pause-btn');
         const sceneDisplay = document.getElementById('scene-display');
+        const sceneProgress = document.getElementById('scene-progress');
 
-        // Extended scene sequence to include Scene 0, 0.1, 3, 4, and 5 sub-scenes
-        const scenesList = ['0', '0.1', '1', '2', '3A', '3B', '3C', '3D', '4A', '4B', '4C', '4D', '5A', '5B', '5C', '5D'];
-        let sceneIndex = 0; // Start at index 0 ('0')
+        // Display numbers follow one decimal convention; keys preserve the rendering logic.
+        const scenesList = [
+            { key: '0',   number: '0.1', title: 'Two nodes' },
+            { key: '0.1', number: '0.2', title: 'One connection' },
+            { key: '1',   number: '1.1', title: 'Nodes appear' },
+            { key: '2',   number: '2.1', title: 'Links form a network' },
+            { key: '3A',  number: '3.1', title: 'Select distant nodes' },
+            { key: '3B',  number: '3.2', title: 'Compare possible routes' },
+            { key: '3C',  number: '3.3', title: 'Find the shortest path' },
+            { key: '3D',  number: '3.4', title: 'Hubs create shortcuts' },
+            { key: '4A',  number: '4.1', title: 'Nodes are not equal' },
+            { key: '4B',  number: '4.2', title: 'Compare node degree' },
+            { key: '4C',  number: '4.3', title: 'Reveal the hubs' },
+            { key: '4D',  number: '4.4', title: 'Reveal the leaves' },
+            { key: '5A',  number: '5.1', title: 'One network' },
+            { key: '5B',  number: '5.2', title: 'Communities emerge' },
+            { key: '5C',  number: '5.3', title: 'Communities revealed' },
+            { key: '5D',  number: '5.4', title: 'Inside communities' },
+            { key: '5E',  number: '5.5', title: 'Bridges connect groups' }
+        ];
+        let sceneIndex = 0;
 
         function updateScene() {
-            const currentScene = scenesList[sceneIndex];
-            sceneDisplay.textContent = `Scene ${currentScene}`;
+            const sceneInfo = scenesList[sceneIndex];
+            const currentScene = sceneInfo.key;
+            const remainingScenes = scenesList.length - sceneIndex - 1;
+            sceneDisplay.textContent = `${sceneInfo.number} — ${sceneInfo.title}`;
+            sceneProgress.textContent = remainingScenes === 0
+                ? `${sceneIndex + 1} of ${scenesList.length} · Complete`
+                : `${sceneIndex + 1} of ${scenesList.length} · ${remainingScenes} remaining`;
             prevBtn.disabled = sceneIndex === 0;
             nextBtn.disabled = sceneIndex === scenesList.length - 1;
 
@@ -867,7 +924,21 @@
                 }
             }
             else if (currentScene === '5C') {
-                // Scene 5C (Swapped from old 5D): Community Structure Explained (Extreme Contrast: Internal vs External)
+                // Scene 5.3: Reveal distinct communities before explaining their internal structure.
+                lines.visible = true;
+                lineMat.opacity = baseOpacity * 0.35;
+                particles.visible = false;
+
+                for(let i=0; i<NUM_CLUSTERS; i++) {
+                    const cNodes = [];
+                    for(let j=0; j<NUM_NODES; j++) if(resolvedClusters[j] === i) cNodes.push(j);
+                    const hue = (i * 137.508) % 360;
+                    const color = new THREE.Color().setHSL(hue / 360, 0.72, 0.55).getHex();
+                    highlightGroup.add(createHighlightNodes(cNodes, color, 1.0));
+                }
+            }
+            else if (currentScene === '5D') {
+                // Scene 5.4: Explain community structure with strong internal edges.
                 lines.visible = false;
                 particles.visible = false;
 
@@ -889,8 +960,8 @@
                 externalLinks.push(...links.filter(l => resolvedClusters[l.source] !== resolvedClusters[l.target]));
                 highlightGroup.add(createHighlightEdgeList(externalLinks, 0x333333, 0.04));
             }
-            else if (currentScene === '5D') {
-                // Scene 5D (The New Last Scene): Bridges Revealed (Highlight only external links)
+            else if (currentScene === '5E') {
+                // Scene 5.5: Reveal the bridges that connect communities.
                 lines.visible = false;
                 particles.visible = false;
 
