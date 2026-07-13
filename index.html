@@ -1,22 +1,1040 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="A short introduction to complex networks." />
-    <meta name="theme-color" content="#f5f2e9" />
-    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="styles.css" />
-    <title>HappyNet</title>
-  </head>
-  <body>
-    <main>
-      <h1>HappyNet</h1>
-      <p>A short introduction to complex networks.</p>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Explore nodes, links, shortest paths, hubs, and communities in an interactive scientific network visualization.">
+    <meta name="theme-color" content="#0a0a0a">
+    <meta property="og:title" content="HappyNet — Interactive Network Visualization">
+    <meta property="og:description" content="An interactive introduction to complex networks, hubs, paths, and communities.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://joergmenche.github.io/happynet/">
+    <link rel="canonical" href="https://joergmenche.github.io/happynet/">
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+    <title>HappyNet — Interactive Network Visualization</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #0A0A0A; /* Dark background as requested */
+            color: #ddd;
+            font-family: sans-serif;
+        }
+        #network-visualization {
+            position: fixed;
+            inset: 0;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            touch-action: none;
+        }
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+        /* UI Panel Styles */
+        #ui-toggle {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            background: rgba(20, 20, 20, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 2px 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: sans-serif;
+            font-size: 9px;
+            transition: background 0.2s;
+        }
+        #ui-toggle:hover {
+            background: rgba(50, 50, 50, 0.8);
+        }
+        button:focus-visible {
+            outline: 3px solid #fff;
+            outline-offset: 3px;
+        }
+        #ui-panel {
+            position: absolute;
+            top: 60px;
+            left: 20px;
+            z-index: 10;
+            background: rgba(10, 10, 10, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 15px;
+            border-radius: 6px;
+            color: #ddd;
+            font-family: sans-serif;
+            font-size: 13px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 220px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+            transition: opacity 0.2s, visibility 0.2s;
+        }
+        .hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        button.action-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        button.action-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        button.action-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        @media (max-width: 600px) {
+            #ui-toggle {
+                top: 12px;
+                left: 12px;
+                min-height: 44px;
+                padding: 8px 10px;
+                font-size: 12px;
+            }
+            #ui-panel {
+                top: 68px;
+                left: 12px;
+                width: min(252px, calc(100vw - 24px));
+                box-sizing: border-box;
+                padding: 12px;
+                gap: 12px;
+            }
+            button.action-btn {
+                min-height: 44px;
+            }
+        }
+    </style>
+    <!-- Include Three.js for high-performance particle rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu" crossorigin="anonymous"></script>
+    <!-- Include OrbitControls for zoom and pan capabilities -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js" integrity="sha384-wagZhIFgY4hD+7awjQjR4e2E294y6J2HSnd8eTNc15ZubTeQeVRZwhQJ+W6hnBsf" crossorigin="anonymous"></script>
+</head>
+<body>
+    <main id="network-visualization" aria-labelledby="page-title" aria-describedby="network-description">
+    <h1 id="page-title" class="sr-only">HappyNet interactive network visualization</h1>
+    <p id="network-description" class="sr-only">Explore a scientific network through a sequence of scenes showing nodes, links, shortest paths, hubs, leaves, communities, and bridges. Use the controls to move between scenes, pause rotation, or start the presentation.</p>
+    <!-- Overlay UI Panel -->
+    <button id="ui-toggle" type="button" aria-expanded="true" aria-controls="ui-panel">⚙️ Controls</button>
+    <section id="ui-panel" aria-label="Network presentation controls">
+        <h2 class="sr-only">Presentation controls</h2>
+        <div class="control-group" style="flex-direction: row; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 10px;">
+            <button id="prev-scene" class="action-btn" type="button">◀ Prev</button>
+            <span id="scene-display" role="status" aria-live="polite" style="font-weight: bold; font-size: 14px;">Scene 0</span>
+            <button id="next-scene" class="action-btn" type="button">Next ▶</button>
+        </div>
+        <button id="presentation-btn" class="action-btn" type="button" aria-pressed="false" style="background: rgba(0, 150, 255, 0.2); border-color: rgba(0, 150, 255, 0.5);">▶ Start Presentation</button>
+        <button id="play-pause-btn" class="action-btn" type="button" aria-pressed="true" style="background: rgba(255, 150, 0, 0.2); border-color: rgba(255, 150, 0, 0.5);">⏸ Pause Rotation</button>
+    </section>
+    <noscript>This visualization requires JavaScript and WebGL. It presents nodes, links, paths, hubs, and communities in a complex network.</noscript>
     </main>
 
-    <a class="source" href="https://github.com/joergmenche/happynet">
-      View source ↗
-    </a>
-  </body>
+    <script>
+        // 1. Scene Setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0A0A0A);
+        scene.fog = new THREE.FogExp2(0x0A0A0A, 0.0008); // Slight depth fading
+
+        // 2. Camera Setup (Slight perspective view, plenty of empty space)
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 4000);
+        camera.position.set(0, 335, 670); // Closer default distance (approx 750 units away)
+        camera.lookAt(0, 0, 0);
+
+        // 3. Renderer Setup (High resolution)
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.domElement.setAttribute('aria-label', 'Animated three-dimensional network of nodes and links. Drag to rotate, pinch or scroll to zoom, and use the presentation controls to change scenes.');
+        document.getElementById('network-visualization').appendChild(renderer.domElement);
+
+        let targetCameraDistance = 750; // Dynamic camera distance target
+        let targetCameraElevationRatio = 0.45; // Dynamic camera elevation (0.45 = standard angle, 0.85 = top bird's eye view)
+
+        // 4. Controls (Allows Zooming, Panning, and Rotating)
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.01; // Ultra smooth/low friction for near-infinite manual momentum
+        controls.enablePan = true;
+        controls.enableZoom = true;
+        controls.minDistance = 5;      // Allow zooming all the way inside the network
+        controls.maxDistance = 4000;   // Allow zooming incredibly far out
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        controls.autoRotate = !prefersReducedMotion; // Respect the user's motion preference
+        controls.autoRotateSpeed = 0.5;
+
+        // --- NEW: Yield camera control immediately when the user interacts ---
+        let isTransitioningCamera = false;
+        controls.addEventListener('start', () => {
+            isTransitioningCamera = false; // Stop auto-adjusting if user clicks/drags/zooms
+        });
+
+        // 5. Generate Glowing Node Texture (Fake Soft Bloom effect)
+        function createGlowTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+
+            // Create radial gradient for soft bloom
+            const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');     // Intense hot core
+            gradient.addColorStop(0.15, 'rgba(255, 255, 255, 0.8)');  // Inner glow
+            gradient.addColorStop(0.4, 'rgba(255, 255, 255, 0.2)');   // Outer bloom
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');           // Fade to transparent
+
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 128, 128);
+
+            const texture = new THREE.Texture(canvas);
+            texture.needsUpdate = true;
+            return texture;
+        }
+
+        const glowTexture = createGlowTexture();
+
+        // 6. Network Generation Engine
+        const NUM_NODES = 2500;
+        const NUM_CLUSTERS = 30;
+        const positions = new Float32Array(NUM_NODES * 3);
+        const nodesData = []; // Store metadata for edge generation
+
+        // Deterministic PRNG to ensure the network remains exactly the same across reloads/scenes
+        let seed = 42;
+        function prng() {
+            seed = (seed * 16807) % 2147483647;
+            return (seed - 1) / 2147483646;
+        }
+
+        // Utility: Gaussian distribution for organic scattering
+        function randomGaussian() {
+            let u = 0, v = 0;
+            while(u === 0) u = prng();
+            while(v === 0) v = prng();
+            return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+        }
+
+        // Define cluster centers (Communities & Hubs)
+        const clusters = [];
+        for (let i = 0; i < NUM_CLUSTERS; i++) {
+            // Distribute clusters in a wide, slightly flattened ellipsoid
+            const r = prng() * 300;
+            const theta = prng() * Math.PI * 2;
+            const phi = Math.acos(2 * prng() - 1);
+
+            const x = r * Math.sin(phi) * Math.cos(theta);
+            const y = r * Math.sin(phi) * Math.sin(theta) * 0.4; // Flattened Y axis
+            const z = r * Math.cos(phi);
+
+            // Weight determines if this cluster is a massive hub or small community
+            const weight = Math.pow(prng(), 1.5);
+            clusters.push({ x, y, z, weight, id: i });
+        }
+
+        // Sort to favor heavy hubs during generation (Power-law imitation)
+        clusters.sort((a, b) => b.weight - a.weight);
+
+        // Position nodes organically
+        for (let i = 0; i < NUM_NODES; i++) {
+            let nx, ny, nz;
+            let clusterId = -1;
+
+            // 10% chance to be a purely random "bridge" or distant leaf node
+            if (prng() < 0.10) {
+                nx = (prng() - 0.5) * 800;
+                ny = (prng() - 0.5) * 300;
+                nz = (prng() - 0.5) * 800;
+            } else {
+                // Select a cluster (biased towards the massive hubs)
+                const clusterIdx = Math.floor(Math.pow(prng(), 2.5) * NUM_CLUSTERS);
+                const c = clusters[clusterIdx];
+                clusterId = c.id;
+
+                // Spread nodes out from the cluster center using Gaussian distribution
+                const spread = 15 + prng() * 60;
+                nx = c.x + randomGaussian() * spread;
+                ny = c.y + randomGaussian() * (spread * 0.5); // Maintain flattened structure
+                nz = c.z + randomGaussian() * spread;
+            }
+
+            // Guarantee two extremely distant nodes for the future shortest-path demo
+            if (i === 0) { nx = -800; ny = 0; nz = 0; clusterId = -1; }
+            if (i === 1) { nx = 800; ny = 0; nz = 0; clusterId = -1; }
+
+            positions[i * 3] = nx;
+            positions[i * 3 + 1] = ny;
+            positions[i * 3 + 2] = nz;
+
+            nodesData.push({ id: i, x: nx, y: ny, z: nz, clusterId: clusterId });
+        }
+
+        // --- NEW: EDGE GENERATION LOGIC (Guaranteed Global Connectivity) ---
+        const links = [];
+        const distSq = (a, b) => (a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2;
+
+        const hubs = [];
+        const clusteredNodes = []; // Tracks nodes belonging to communities for bridge anchoring
+
+        // 1. Community Internal Wiring (Spanning Tree + Density)
+        clusters.forEach(c => {
+            const cNodes = nodesData.filter(n => n.clusterId === c.id);
+            if(cNodes.length === 0) return;
+
+            // Sort by distance to cluster center to build outward
+            cNodes.sort((a, b) => distSq(a, c) - distSq(b, c));
+
+            // The closest node is the Hub
+            const hub = cNodes[0];
+            hubs.push(hub);
+
+            const connectedInCommunity = [hub];
+            clusteredNodes.push(hub);
+
+            // Build a guaranteed connected tree for the community
+            for(let i = 1; i < cNodes.length; i++) {
+                const n = cNodes[i];
+                clusteredNodes.push(n);
+
+                // Connect to the nearest node that is ALREADY in the tree (guarantees path to hub)
+                let nearestConnected = connectedInCommunity[0];
+                let minDist = distSq(n, nearestConnected);
+
+                for(let j = 1; j < connectedInCommunity.length; j++) {
+                    const candidate = connectedInCommunity[j];
+                    const d = distSq(n, candidate);
+                    if(d < minDist) {
+                        minDist = d;
+                        nearestConnected = candidate;
+                    }
+                }
+
+                // 1st edge: Guarantees the node is part of the community
+                links.push({ source: n.id, target: nearestConnected.id });
+                connectedInCommunity.push(n);
+
+                // Add density: 30% chance to also connect directly to the hub (hub-and-spoke)
+                if (nearestConnected.id !== hub.id && prng() < 0.3) {
+                    links.push({ source: n.id, target: hub.id });
+                }
+
+                // Add density: 40% chance to connect to another random nearby community node
+                if (prng() < 0.4) {
+                    const randNode = connectedInCommunity[Math.floor(prng() * connectedInCommunity.length)];
+                    if (randNode.id !== n.id && randNode.id !== nearestConnected.id) {
+                        links.push({ source: n.id, target: randNode.id });
+                    }
+                }
+            }
+        });
+
+        // 2. Connect Bridges / Distant Leaf Nodes
+        const bridges = nodesData.filter(n => n.clusterId === -1);
+        bridges.forEach(b => {
+            // To guarantee global connectivity, bridges MUST anchor to at least one clustered node
+            let nearestClustered = clusteredNodes[0];
+            let minDist = distSq(b, nearestClustered);
+
+            for(let i = 1; i < clusteredNodes.length; i++) {
+                const d = distSq(b, clusteredNodes[i]);
+                if(d < minDist) {
+                    minDist = d;
+                    nearestClustered = clusteredNodes[i];
+                }
+            }
+
+            // Anchor bridge to the main structure (often resulting in a degree-1 leaf)
+            links.push({ source: b.id, target: nearestClustered.id });
+
+            // 40% chance to form a 2nd connection, sweeping across the void to any other node
+            if(prng() < 0.4) {
+                let nearestAny = null;
+                let minAnyDist = Infinity;
+                nodesData.forEach(n => {
+                    if (n.id !== b.id && n.id !== nearestClustered.id) {
+                        const d = distSq(b, n);
+                        if (d < minAnyDist) {
+                            minAnyDist = d;
+                            nearestAny = n;
+                        }
+                    }
+                });
+                if (nearestAny) links.push({ source: b.id, target: nearestAny.id });
+            }
+        });
+
+        // 3. Global Backbone (Connect all Hubs to form a single giant component)
+        for(let i = 0; i < hubs.length; i++) {
+            // Ring structure guarantees 100% interconnected communities
+            links.push({ source: hubs[i].id, target: hubs[(i+1)%hubs.length].id });
+
+            // Small-world short cuts between random hubs for tighter network diameter
+            if(prng() < 0.2) {
+                const randHub = hubs[Math.floor(prng() * hubs.length)];
+                if(randHub.id !== hubs[i].id) links.push({ source: hubs[i].id, target: randHub.id });
+            }
+        }
+
+        // --- NEW: Identify a distinct, separated central pair for Scene 0 and 0.1 ---
+        let centerLink = links[0];
+        let maxEdgeLen = -1;
+        links.forEach(l => {
+            const s = nodesData[l.source];
+            const t = nodesData[l.target];
+
+            // Ensure both nodes are relatively central so they frame perfectly on camera
+            const distS = Math.sqrt(s.x*s.x + s.y*s.y + s.z*s.z);
+            const distT = Math.sqrt(t.x*t.x + t.y*t.y + t.z*t.z);
+
+            if (distS < 350 && distT < 350) {
+                // Find the longest possible connection within this central area
+                const edgeLen = Math.sqrt((s.x-t.x)**2 + (s.y-t.y)**2 + (s.z-t.z)**2);
+                if (edgeLen > maxEdgeLen) {
+                    maxEdgeLen = edgeLen;
+                    centerLink = l;
+                }
+            }
+        });
+        const scene0Node1 = centerLink.source;
+        const scene0Node2 = centerLink.target;
+
+        // --- NEW: Resolve Community Assignment for Visualizing Scene 5 ---
+        // Leaf nodes and bridges currently have a clusterId of -1.
+        // We resolve them to the community of the nearest node they are anchored to.
+        const resolvedClusters = new Array(NUM_NODES);
+        for(let i = 0; i < NUM_NODES; i++) {
+            if (nodesData[i].clusterId !== -1) {
+                resolvedClusters[i] = nodesData[i].clusterId;
+            } else {
+                const neighborLink = links.find(l => l.source === i || l.target === i);
+                if (neighborLink) {
+                    const neighborId = neighborLink.source === i ? neighborLink.target : neighborLink.source;
+                    resolvedClusters[i] = nodesData[neighborId].clusterId !== -1 ? nodesData[neighborId].clusterId : 0;
+                } else {
+                    resolvedClusters[i] = 0; // Fallback
+                }
+            }
+        }
+
+        // 7. Render Setup for Nodes
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+        const material = new THREE.PointsMaterial({
+            size: 20.0,
+            map: glowTexture,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            transparent: true,
+            opacity: 0.9,
+            color: 0x3399ff
+        });
+
+        const particles = new THREE.Points(geometry, material);
+        scene.add(particles);
+
+        // --- NEW: Render Setup for Edges ---
+        const lineGeo = new THREE.BufferGeometry();
+        const linePos = new Float32Array(links.length * 6);
+        let idx = 0;
+        links.forEach(link => {
+            const s = nodesData[link.source];
+            const t = nodesData[link.target];
+            linePos[idx++] = s.x; linePos[idx++] = s.y; linePos[idx++] = s.z;
+            linePos[idx++] = t.x; linePos[idx++] = t.y; linePos[idx++] = t.z;
+        });
+        lineGeo.setAttribute('position', new THREE.BufferAttribute(linePos, 3));
+
+        const lineMat = new THREE.LineBasicMaterial({
+            color: 0x888888, // Gray edges
+            transparent: true,
+            opacity: 0.40, // Standardized edge opacity
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+        const lines = new THREE.LineSegments(lineGeo, lineMat);
+        scene.add(lines);
+
+        // --- NEW: SCENE 3 HIGHLIGHT INFRASTRUCTURE ---
+        const highlightGroup = new THREE.Group();
+        scene.add(highlightGroup);
+
+        // 1. Build Adjacency List for Pathfinding
+        const adj = Array.from({length: NUM_NODES}, () => []);
+        links.forEach(l => {
+            adj[l.source].push(l.target);
+            adj[l.target].push(l.source);
+        });
+
+        // 2. BFS Pathfinding Algorithm
+        function getShortestPath(start, end, ignoreNodes = new Set()) {
+            const parent = new Array(NUM_NODES).fill(-1);
+            const q = [start];
+            const visited = new Set([start]);
+            while(q.length > 0) {
+                const u = q.shift();
+                if(u === end) break;
+                for(const v of adj[u]) {
+                    if(!visited.has(v) && !ignoreNodes.has(v)) {
+                        visited.add(v);
+                        parent[v] = u;
+                        q.push(v);
+                    }
+                }
+            }
+            if (!visited.has(end)) return null;
+            const path = [];
+            let curr = end;
+            while(curr !== -1) { path.push(curr); curr = parent[curr]; }
+            return path.reverse();
+        }
+
+        // 3. Calculate paths between Node 0 and Node 1 (placed far apart)
+        const shortestPath = getShortestPath(0, 1);
+        const altPaths = [];
+
+        // Find alternative exploratory routes by temporarily blocking nodes on the main path
+        if (shortestPath && shortestPath.length > 3) {
+            for (let i = 1; i < shortestPath.length - 1; i++) {
+                const p = getShortestPath(0, 1, new Set([shortestPath[i]]));
+                if (p) altPaths.push(p);
+                if (altPaths.length >= 4) break;
+            }
+        }
+
+        // 4. Highlight Geometry Generators
+        function createHighlightNodes(nodeIndices, colorHex, sizeMult) {
+            if (!nodeIndices || nodeIndices.length === 0) return new THREE.Object3D();
+            const geo = new THREE.BufferGeometry();
+            const pos = new Float32Array(nodeIndices.length * 3);
+            for(let i=0; i<nodeIndices.length; i++) {
+                const n = nodesData[nodeIndices[i]];
+                pos[i*3] = n.x; pos[i*3+1] = n.y; pos[i*3+2] = n.z;
+            }
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+
+            const mat = new THREE.PointsMaterial({
+                size: 20.0 * sizeMult,
+                map: glowTexture,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                transparent: true,
+                opacity: 1.0,
+                color: colorHex
+            });
+            const points = new THREE.Points(geo, mat);
+            points.userData = { isHighlight: true, sizeMult: sizeMult };
+            return points;
+        }
+
+        function createHighlightEdges(pathArray, colorHex, opacity) {
+            if (!pathArray || pathArray.length < 2) return new THREE.Object3D();
+            const geo = new THREE.BufferGeometry();
+            const pos = new Float32Array((pathArray.length - 1) * 6);
+            for(let i=0; i<pathArray.length-1; i++) {
+                const s = nodesData[pathArray[i]];
+                const t = nodesData[pathArray[i+1]];
+                pos[i*6] = s.x; pos[i*6+1] = s.y; pos[i*6+2] = s.z;
+                pos[i*6+3] = t.x; pos[i*6+4] = t.y; pos[i*6+5] = t.z;
+            }
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            const mat = new THREE.LineBasicMaterial({
+                color: colorHex,
+                transparent: true,
+                opacity: opacity,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+            const lineObj = new THREE.LineSegments(geo, mat);
+            lineObj.userData = { isHighlightLine: true };
+            return lineObj;
+        }
+
+        // --- NEW: Utility for drawing arbitrary lists of edges with custom colors/opacity (for Scene 5) ---
+        function createHighlightEdgeList(linksArray, colorHex, opacity) {
+            if (!linksArray || linksArray.length === 0) return new THREE.Object3D();
+            const geo = new THREE.BufferGeometry();
+            const pos = new Float32Array(linksArray.length * 6);
+            for(let i=0; i<linksArray.length; i++) {
+                const s = nodesData[linksArray[i].source];
+                const t = nodesData[linksArray[i].target];
+                pos[i*6] = s.x; pos[i*6+1] = s.y; pos[i*6+2] = s.z;
+                pos[i*6+3] = t.x; pos[i*6+4] = t.y; pos[i*6+5] = t.z;
+            }
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            const mat = new THREE.LineBasicMaterial({
+                color: colorHex,
+                transparent: true,
+                opacity: opacity,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+            const lineObj = new THREE.LineSegments(geo, mat);
+            lineObj.userData = { isHighlightLine: true };
+            return lineObj;
+        }
+
+        // 8. Event Listeners for Responsiveness
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- UI Logic ---
+
+        const uiToggle = document.getElementById('ui-toggle');
+        const uiPanel = document.getElementById('ui-panel');
+        const prevBtn = document.getElementById('prev-scene');
+        const nextBtn = document.getElementById('next-scene');
+        const presentationBtn = document.getElementById('presentation-btn');
+        const playPauseBtn = document.getElementById('play-pause-btn');
+        const sceneDisplay = document.getElementById('scene-display');
+
+        // Extended scene sequence to include Scene 0, 0.1, 3, 4, and 5 sub-scenes
+        const scenesList = ['0', '0.1', '1', '2', '3A', '3B', '3C', '3D', '4A', '4B', '4C', '4D', '5A', '5B', '5C', '5D'];
+        let sceneIndex = 0; // Start at index 0 ('0')
+
+        function updateScene() {
+            const currentScene = scenesList[sceneIndex];
+            sceneDisplay.textContent = `Scene ${currentScene}`;
+            prevBtn.disabled = sceneIndex === 0;
+            nextBtn.disabled = sceneIndex === scenesList.length - 1;
+
+            // Sync base node scale
+            material.size = 20.0;
+
+            // Reset network base states before applying scene specifics
+            highlightGroup.clear();
+            particles.visible = true; // Ensure base uniform nodes are visible by default
+            const baseOpacity = 0.40; // Standardized edge opacity
+
+            isTransitioningCamera = true; // Trigger a gentle camera transition
+
+            // Adjust camera distance and elevation based on scene requirements
+            if (currentScene === '3A' || currentScene === '3B' || currentScene === '3C') {
+                targetCameraDistance = 1250; // A little bigger/further to show context
+                targetCameraElevationRatio = 0.85; // Move into top view / bird's eye perspective
+            } else if (currentScene === '3D') {
+                targetCameraDistance = 1100;
+                targetCameraElevationRatio = 0.70;
+            } else if (currentScene === '4C' || currentScene === '4D') {
+                targetCameraDistance = 500; // Closer perspective
+                targetCameraElevationRatio = 0.35; // Lower perspective immersion
+            } else {
+                targetCameraDistance = 750; // General closer default for all other scenes
+                targetCameraElevationRatio = 0.45; // Default viewing angle
+            }
+
+            // Helper to make the two selected nodes extremely obvious across all Scene 3 sub-scenes
+            const addProminentDistantNodes = () => {
+                // Node 1: Giant Blue Auras + Piercing White Core
+                highlightGroup.add(createHighlightNodes([0], 0x0044ff, 30.0));
+                highlightGroup.add(createHighlightNodes([0], 0x3399ff, 12.0));
+                highlightGroup.add(createHighlightNodes([0], 0xffffff, 5.0));
+                // Node 2: Giant Orange Auras + Piercing White Core
+                highlightGroup.add(createHighlightNodes([1], 0xff3300, 30.0));
+                highlightGroup.add(createHighlightNodes([1], 0xff8800, 12.0));
+                highlightGroup.add(createHighlightNodes([1], 0xffffff, 5.0));
+            };
+
+            // Apply Sub-Scene specific visual logic
+            if (currentScene === '0') {
+                // Scene 0: Just two nodes
+                lines.visible = false;
+                particles.visible = false;
+
+                // Draw only the two central nodes, make them noticeably larger so they can be seen from afar
+                highlightGroup.add(createHighlightNodes([scene0Node1, scene0Node2], 0x3399ff, 5.0));
+                highlightGroup.add(createHighlightNodes([scene0Node1, scene0Node2], 0xffffff, 2.0));
+            }
+            else if (currentScene === '0.1') {
+                // Scene 0.1: Two nodes and 1 edge
+                lines.visible = false;
+                particles.visible = false;
+
+                highlightGroup.add(createHighlightNodes([scene0Node1, scene0Node2], 0x3399ff, 5.0));
+                highlightGroup.add(createHighlightNodes([scene0Node1, scene0Node2], 0xffffff, 2.0));
+
+                // Draw the single connecting edge prominently
+                highlightGroup.add(createHighlightEdges([scene0Node1, scene0Node2], 0x00ffff, 1.0));
+            }
+            else if (currentScene === '1') {
+                // Scene 1: Nodes only
+                lines.visible = false;
+                material.opacity = 0.9;
+                lineMat.opacity = baseOpacity;
+            }
+            else if (currentScene === '2') {
+                lines.visible = true;
+                material.opacity = 0.9;
+                lineMat.opacity = baseOpacity;
+            }
+            else if (currentScene === '3A') {
+                // Scene 3A: Selecting Two Distant Nodes
+                lines.visible = true;
+                material.opacity = 0.9;
+                lineMat.opacity = baseOpacity;
+
+                addProminentDistantNodes();
+            }
+            else if (currentScene === '3B') {
+                // Scene 3B: Exploring Possible Routes
+                lines.visible = true;
+                material.opacity = 0.25; // Fade network
+                lineMat.opacity = baseOpacity * 0.25;
+
+                addProminentDistantNodes();
+
+                // Show exploratory alternative paths (soft glow)
+                altPaths.forEach(p => {
+                    highlightGroup.add(createHighlightEdges(p, 0xffddaa, 0.4));
+                });
+            }
+            else if (currentScene === '3C') {
+                // Scene 3C: Shortest Path Found
+                lines.visible = true;
+                material.opacity = 0.25; // Fade network
+                lineMat.opacity = baseOpacity * 0.25;
+
+                // Highlight the true shortest path in Cyan
+                highlightGroup.add(createHighlightEdges(shortestPath, 0x00ffff, 1.0));
+                highlightGroup.add(createHighlightNodes(shortestPath.slice(1, -1), 0x00ffff, 1.5));
+
+                addProminentDistantNodes();
+            }
+            else if (currentScene === '3D') {
+                // Scene 3D: Hubs Create Shortcuts
+                lines.visible = true;
+                material.opacity = 0.25; // Fade network
+                lineMat.opacity = baseOpacity * 0.25;
+
+                highlightGroup.add(createHighlightEdges(shortestPath, 0x00ffff, 1.0));
+
+                // Identify Hubs on the path (Top connected nodes)
+                let pathHubs = [];
+                let pathNormal = [];
+
+                let degrees = shortestPath.map(id => ({id, deg: adj[id].length}));
+                degrees.sort((a,b) => b.deg - a.deg);
+                let threshold = degrees.length > 4 ? degrees[2].deg : 0; // Top 3 hub threshold
+
+                shortestPath.slice(1, -1).forEach(id => {
+                    // It is a hub if it meets the top 3 threshold and has > 5 connections
+                    if (adj[id].length >= threshold && adj[id].length > 5) pathHubs.push(id);
+                    else pathNormal.push(id);
+                });
+
+                highlightGroup.add(createHighlightNodes(pathNormal, 0x00ffff, 1.5));
+
+                // Hubs: Massive cyan glow with piercing white cores to make them unmistakable
+                highlightGroup.add(createHighlightNodes(pathHubs, 0x00ffff, 15.0));
+                highlightGroup.add(createHighlightNodes(pathHubs, 0xffffff, 6.0));
+
+                addProminentDistantNodes();
+            }
+            else if (currentScene === '4A') {
+                // Scene 4A: All Nodes Are Not Equal (Transition back to uniform base network)
+                lines.visible = true;
+                particles.visible = true; // Ensure base uniform nodes are fully visible
+                material.opacity = 0.9;
+                lineMat.opacity = baseOpacity;
+            }
+            else if (currentScene === '4B') {
+                // Scene 4B: Degree Distribution (Measuring - Continuous Spectrum)
+                lines.visible = true;
+                lineMat.opacity = baseOpacity;
+                particles.visible = false; // Hide uniform base nodes, redraw everything scaled
+
+                // Group nodes exactly by their degree
+                const degreeMap = new Map();
+                adj.forEach((neighbors, id) => {
+                    const deg = neighbors.length;
+                    if (!degreeMap.has(deg)) degreeMap.set(deg, []);
+                    degreeMap.get(deg).push(id);
+                });
+
+                degreeMap.forEach((nodeList, deg) => {
+                    // Cap the scaling effect at degree 35.
+                    // This prevents extreme outliers from squishing the entire spectrum.
+                    const t = Math.min(1.0, deg / 35.0);
+
+                    // Leaf nodes shrink dramatically (0.15x), hubs grow exponentially (up to 6.0x)
+                    const sizeMult = 0.15 + Math.pow(t, 1.2) * 5.85;
+
+                    // Color temperature shift: Tiny Dark Blue -> Bright Cyan -> Piercing White
+                    let colorHex;
+                    if (t < 0.4) {
+                        // Low to Medium degree
+                        colorHex = new THREE.Color(0x002288).lerp(new THREE.Color(0x00ccff), t / 0.4).getHex();
+                    } else {
+                        // High to Extreme degree
+                        colorHex = new THREE.Color(0x00ccff).lerp(new THREE.Color(0xffffff), (t - 0.4) / 0.6).getHex();
+                    }
+
+                    highlightGroup.add(createHighlightNodes(nodeList, colorHex, sizeMult));
+
+                    // Add an extra intense core for the highly connected nodes
+                    if (t > 0.5) {
+                        highlightGroup.add(createHighlightNodes(nodeList, 0xffffff, sizeMult * 0.3));
+                    }
+                });
+            }
+            else if (currentScene === '4C') {
+                // Scene 4C: Reveal the Hubs (Identifying - Discrete Classification)
+                lines.visible = true;
+                particles.visible = false; // Hide base network for cleaner contrast
+                lineMat.opacity = baseOpacity * 0.15; // Very faint edges to reduce clutter
+
+                // Identify top hubs (strictly the top 2% "megacities")
+                let degrees = adj.map((neighbors, id) => ({id, deg: neighbors.length}));
+                degrees.sort((a,b) => b.deg - a.deg);
+                const topHubs = degrees.slice(0, 50).map(n => n.id);
+                const nonHubs = degrees.slice(50).map(n => n.id);
+
+                // Background network: Small, crisp, desaturated gray dots
+                highlightGroup.add(createHighlightNodes(nonHubs, 0x444444, 0.6));
+
+                // Hubs: Crisp cyan, drastically reduced size for a clean scientific aesthetic
+                highlightGroup.add(createHighlightNodes(topHubs, 0x00ffff, 3.5));
+                highlightGroup.add(createHighlightNodes(topHubs, 0xffffff, 1.5));
+            }
+            else if (currentScene === '4D') {
+                // Scene 4D: Reveal the Leaf Nodes
+                lines.visible = true;
+                particles.visible = false; // Hide base network for cleaner contrast
+                lineMat.opacity = baseOpacity * 0.15; // Very faint edges to reduce clutter
+
+                // Identify leaf nodes (degree == 1)
+                const leaves = [];
+                const nonLeaves = [];
+                adj.forEach((neighbors, id) => {
+                    if (neighbors.length === 1) leaves.push(id);
+                    else nonLeaves.push(id);
+                });
+
+                // Background network: Small, crisp, desaturated gray dots
+                highlightGroup.add(createHighlightNodes(nonLeaves, 0x444444, 0.6));
+
+                // Leaf Nodes: Crisp pink/magenta, drastically reduced size for a clean aesthetic
+                highlightGroup.add(createHighlightNodes(leaves, 0xff00aa, 3.0));
+                highlightGroup.add(createHighlightNodes(leaves, 0xffffff, 1.2));
+            }
+            else if (currentScene === '5A') {
+                // Scene 5A: One Network (Neutral baseline)
+                lines.visible = true;
+                particles.visible = true;
+                material.opacity = 0.9;
+                lineMat.opacity = baseOpacity;
+            }
+            else if (currentScene === '5B') {
+                // Scene 5B: Emerging Communities (Soft colors begin appearing)
+                lines.visible = true;
+                lineMat.opacity = baseOpacity * 0.7; // Edges slightly dimmed
+                particles.visible = false; // Override base nodes
+
+                for(let i=0; i<NUM_CLUSTERS; i++) {
+                    const cNodes = [];
+                    for(let j=0; j<NUM_NODES; j++) if(resolvedClusters[j] === i) cNodes.push(j);
+                    // Use Golden Angle (137.5 degrees) for maximum perceptual hue distance
+                    const hue = (i * 137.508) % 360;
+                    const color = new THREE.Color().setHSL(hue / 360, 0.4, 0.4).getHex(); // Soft, muted color
+                    highlightGroup.add(createHighlightNodes(cNodes, color, 1.0));
+                }
+            }
+            else if (currentScene === '5C') {
+                // Scene 5C (Swapped from old 5D): Community Structure Explained (Extreme Contrast: Internal vs External)
+                lines.visible = false;
+                particles.visible = false;
+
+                const externalLinks = [];
+                for(let i=0; i<NUM_CLUSTERS; i++) {
+                    const cNodes = [];
+                    for(let j=0; j<NUM_NODES; j++) if(resolvedClusters[j] === i) cNodes.push(j);
+
+                    const hue = (i * 137.508) % 360;
+                    const color = new THREE.Color().setHSL(hue / 360, 0.8, 0.6).getHex();
+                    highlightGroup.add(createHighlightNodes(cNodes, color, 1.0));
+
+                    // Internal Community Edges (Very dense, bright, rich)
+                    const internalLinks = links.filter(l => resolvedClusters[l.source] === i && resolvedClusters[l.target] === i);
+                    highlightGroup.add(createHighlightEdgeList(internalLinks, color, 0.9));
+                }
+
+                // External Bridges (Extremely sparse, subtle, nearly invisible)
+                externalLinks.push(...links.filter(l => resolvedClusters[l.source] !== resolvedClusters[l.target]));
+                highlightGroup.add(createHighlightEdgeList(externalLinks, 0x333333, 0.04));
+            }
+            else if (currentScene === '5D') {
+                // Scene 5D (The New Last Scene): Bridges Revealed (Highlight only external links)
+                lines.visible = false;
+                particles.visible = false;
+
+                const externalLinks = [];
+                for(let i=0; i<NUM_CLUSTERS; i++) {
+                    const cNodes = [];
+                    for(let j=0; j<NUM_NODES; j++) if(resolvedClusters[j] === i) cNodes.push(j);
+
+                    const hue = (i * 137.508) % 360;
+                    const color = new THREE.Color().setHSL(hue / 360, 0.8, 0.6).getHex();
+
+                    // Keep nodes visible but dimmed so the bridges stand out
+                    highlightGroup.add(createHighlightNodes(cNodes, color, 0.5));
+
+                    // Internal Community Edges (Faded heavily to focus on bridges)
+                    const internalLinks = links.filter(l => resolvedClusters[l.source] === i && resolvedClusters[l.target] === i);
+                    highlightGroup.add(createHighlightEdgeList(internalLinks, color, 0.05));
+                }
+
+                // External Bridges (HIGHLIGHTED brightly!)
+                externalLinks.push(...links.filter(l => resolvedClusters[l.source] !== resolvedClusters[l.target]));
+                highlightGroup.add(createHighlightEdgeList(externalLinks, 0xffffff, 0.9));
+            }
+        }
+
+        // --- NEW: Presentation Logic ---
+        let presentationTimer = null;
+
+        function stopPresentation() {
+            if (presentationTimer) {
+                clearInterval(presentationTimer);
+                presentationTimer = null;
+                presentationBtn.textContent = '▶ Start Presentation';
+                presentationBtn.setAttribute('aria-pressed', 'false');
+                presentationBtn.style.background = 'rgba(0, 150, 255, 0.2)';
+            }
+        }
+
+        presentationBtn.addEventListener('click', () => {
+            if (presentationTimer) {
+                stopPresentation();
+            } else {
+                // If starting from the very end, loop back to the beginning immediately
+                if (sceneIndex === scenesList.length - 1) {
+                    sceneIndex = 0;
+                    updateScene();
+                }
+
+                presentationBtn.textContent = '⏹ Stop Presentation';
+                presentationBtn.setAttribute('aria-pressed', 'true');
+                presentationBtn.style.background = 'rgba(255, 50, 50, 0.2)';
+
+                presentationTimer = setInterval(() => {
+                    if (sceneIndex < scenesList.length - 1) {
+                        sceneIndex++;
+                        updateScene();
+                    } else {
+                        // Loop back to the start
+                        sceneIndex = 0;
+                        updateScene();
+                    }
+                }, 10000); // 10 seconds per scene
+            }
+        });
+
+        // Play/Pause Rotation Logic
+        playPauseBtn.addEventListener('click', () => {
+            controls.autoRotate = !controls.autoRotate;
+            playPauseBtn.setAttribute('aria-pressed', String(controls.autoRotate));
+            if (controls.autoRotate) {
+                playPauseBtn.textContent = '⏸ Pause Rotation';
+                playPauseBtn.style.background = 'rgba(255, 150, 0, 0.2)';
+                playPauseBtn.style.borderColor = 'rgba(255, 150, 0, 0.5)';
+            } else {
+                playPauseBtn.textContent = '▶ Play Rotation';
+                playPauseBtn.style.background = 'rgba(0, 255, 150, 0.2)';
+                playPauseBtn.style.borderColor = 'rgba(0, 255, 150, 0.5)';
+            }
+        });
+
+        // Scene Navigation
+        prevBtn.addEventListener('click', () => {
+            stopPresentation(); // Stop auto-play if user manually navigates
+            if (sceneIndex > 0) {
+                sceneIndex--;
+                updateScene();
+            }
+        });
+
+        nextBtn.addEventListener('click', () => {
+            stopPresentation(); // Stop auto-play if user manually navigates
+            if (sceneIndex < scenesList.length - 1) {
+                sceneIndex++;
+                updateScene();
+            }
+        });
+
+        // Hide/Unhide the UI controls
+        uiToggle.addEventListener('click', () => {
+            uiPanel.classList.toggle('hidden');
+            const expanded = !uiPanel.classList.contains('hidden');
+            uiToggle.setAttribute('aria-expanded', String(expanded));
+            uiPanel.setAttribute('aria-hidden', String(!expanded));
+        });
+
+        // 9. Animation Loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Smooth live camera distance and elevation transitions (Only when not interacting)
+            if (isTransitioningCamera) {
+                const offset = camera.position.clone().sub(controls.target);
+                const currentDist = offset.length();
+                const distDiff = targetCameraDistance - currentDist;
+
+                // Interpolate Y elevation to achieve bird's eye sweeps
+                const currentHorizontalDist = Math.sqrt(offset.x * offset.x + offset.z * offset.z);
+                const targetY = currentHorizontalDist * targetCameraElevationRatio;
+                const yDiff = targetY - offset.y;
+
+                if (Math.abs(distDiff) > 1.0 || Math.abs(yDiff) > 1.0) {
+                    offset.y += yDiff * 0.02; // Smooth Elevation
+                    offset.setLength(currentDist + distDiff * 0.02); // Smooth Distance
+                    camera.position.copy(controls.target).add(offset);
+                } else {
+                    isTransitioningCamera = false; // Transition complete
+                }
+            }
+
+            controls.update(); // Required for damping and autoRotate
+            renderer.render(scene, camera);
+        }
+
+        // Start animation
+        window.onload = function() {
+            if (!controls.autoRotate) {
+                playPauseBtn.textContent = '▶ Play Rotation';
+                playPauseBtn.setAttribute('aria-pressed', 'false');
+                playPauseBtn.style.background = 'rgba(0, 255, 150, 0.2)';
+                playPauseBtn.style.borderColor = 'rgba(0, 255, 150, 0.5)';
+            }
+            updateScene();
+            animate();
+        };
+    </script>
+</body>
 </html>
